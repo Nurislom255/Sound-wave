@@ -1,4 +1,6 @@
-'use strict';
+import {
+  Capsule, drawCapsule, metres, volts, magnification, FS_SPL_DB,
+} from './diaphragm.js';
 
 /* ===============================================================
    Sound Wave — a live microphone visualiser.
@@ -65,6 +67,11 @@ const els = {
   rmsVal: $('#rmsVal'), peakVal: $('#peakVal'),
   meterRms: $('#meterRms'), meterPeak: $('#meterPeak'),
   pitchHz: $('#pitchHz'), pitchNote: $('#pitchNote'), sgAxis: $('#sgAxis'),
+  micType: $('#micType'), slow: $('#slow'), slowOut: $('#slowOut'),
+  showDiaphragm: $('#showDiaphragm'),
+  dispVal: $('#dispVal'), splVal: $('#splVal'), capPeak: $('#capPeak'),
+  capOut: $('#capOut'), capOutLabel: $('#capOutLabel'),
+  capMag: $('#capMag'), capSpeed: $('#capSpeed'), capNote: $('#capNote'),
   statSr: $('#statSr'), statBin: $('#statBin'),
   statWin: $('#statWin'), statFps: $('#statFps'),
 };
@@ -86,6 +93,7 @@ function surface(id) {
 const scope  = surface('scope');
 const spec   = surface('spectrum');
 const sgram  = surface('spectrogram');
+const capsCv = surface('capsule');
 
 /** Resize the backing store if needed. Returns true when it changed. */
 function fit(s) {
@@ -111,7 +119,7 @@ function readTheme() {
   theme = {
     bg: get('--canvas-bg'), grid: get('--grid'), gridStrong: get('--grid-strong'),
     axis: get('--axis-text'), wave: get('--wave'), glow: get('--wave-glow'),
-    bar: get('--bar'), barTop: get('--bar-top'),
+    bar: get('--bar'), barTop: get('--bar-top'), text: get('--text'),
   };
 }
 
@@ -223,6 +231,7 @@ async function start() {
 
   A.source.connect(A.gainNode).connect(A.analyser);   // no .connect(destination)
   allocate();
+  buildCapsule();   // needs the real sample rate for its coefficients
 
   // If the device is unplugged mid-session the track ends; stop cleanly.
   A.stream.getAudioTracks().forEach((t) => { t.onended = () => stop(); });
@@ -257,6 +266,104 @@ function stop() {
   els.meterPeak.style.left = '0%';
   els.statFps.textContent = '—';
   drawIdle();
+}
+
+/* --------------------------------------------------------------
+   4b. The capsule, and slow-motion replay
+
+   A diaphragm driven at 440 Hz swings back and forth 440 times a second.
+   Sampled by a 60 fps display that aliases into nonsense — you would see
+   a slow random wobble that has nothing to do with the real motion.
+
+   So we do what a high-speed camera does: capture a real slice of motion
+   and replay it slowly. Each capture is one analyser buffer — about 46 ms
+   of genuine measured displacement — played back over a second or more.
+   Everything you see moving really happened; only the clock is changed.
+   -------------------------------------------------------------- */
+
+const SPEEDS = [
+  { v: 1, label: 'real time' },
+  { v: 1 / 10, label: '1/10' },
+  { v: 1 / 30, label: '1/30' },
+  { v: 1 / 100, label: '1/100' },
+  { v: 1 / 300, label: '1/300' },
+];
+
+const AIR_POINTS = 256;         // pressure samples drawn in front of the diaphragm
+
+const C = {
+  capsule: null,
+  playhead: 0,                  // fractional sample index into the capture
+  snapDisp: null,               // frozen displacement, metres
+  snapPress: null,              // frozen driving pressure, pascals
+  air: new Float32Array(AIR_POINTS),
+  visPeak: 1e-12,               // metres that map to a full-swing drawing
+  mag: 0,
+};
+
+function buildCapsule() {
+  C.capsule = new Capsule(els.micType.value, A.ctx ? A.ctx.sampleRate : 48000);
+  C.snapDisp = C.snapPress = null;
+  C.playhead = 0;
+  C.visPeak = 1e-12;
+  const spec = C.capsule.spec;
+  els.capNote.textContent = spec.blurb;
+  els.capOutLabel.textContent = spec.senses === 'displacement' ? 'signal out' : 'EMF out';
+  updateStats();
+}
+
+/** Freeze the current displacement so it can be replayed slowly. */
+function recapture() {
+  const cap = C.capsule;
+  if (!C.snapDisp || C.snapDisp.length !== cap.disp.length) {
+    C.snapDisp = new Float32Array(cap.disp.length);
+    C.snapPress = new Float32Array(cap.press.length);
+  }
+  C.snapDisp.set(cap.disp);
+  C.snapPress.set(cap.press);
+  C.playhead = 0;
+}
+
+/**
+ * Advance the replay and read the capsule's state at the playhead.
+ * @param {number} dtMs wall-clock milliseconds since the last frame
+ */
+function stepCapsule(dtMs, rmsDb) {
+  const cap = C.capsule;
+  cap.process(A.time);
+
+  if (!C.snapDisp || C.snapDisp.length !== cap.disp.length) recapture();
+
+  const speed = SPEEDS[Number(els.slow.value)].v;
+  C.playhead += A.ctx.sampleRate * (dtMs / 1000) * speed;
+  if (C.playhead >= C.snapDisp.length - 1) recapture();
+
+  const i = C.playhead;
+  const i0 = Math.min(C.snapDisp.length - 2, Math.max(0, Math.floor(i)));
+  const f = i - i0;
+  const x = C.snapDisp[i0] * (1 - f) + C.snapDisp[i0 + 1] * f;
+  const v = (C.snapDisp[i0 + 1] - C.snapDisp[i0]) * A.ctx.sampleRate;
+
+  /* Pressure still on its way in, read forward from the playhead. Scale
+     the slice to about three cycles of whatever is dominant: a fixed
+     window turns into an unreadable picket fence at high frequencies. */
+  const byFreq = A.dominantHz > 20
+    ? Math.round(3 * A.ctx.sampleRate / A.dominantHz) : 0;
+  const span = Math.max(32, Math.min(C.snapPress.length - i0 - 1,
+    byFreq > 32 ? byFreq : (C.snapPress.length >> 3)));
+  for (let k = 0; k < AIR_POINTS; k++) {
+    C.air[k] = C.snapPress[i0 + Math.round(k / (AIR_POINTS - 1) * span)];
+  }
+
+  // A slowly-adapting reference so the drawing stays visible at any level,
+  // while the printed figures stay absolute.
+  C.visPeak = Math.max(C.visPeak * 0.985, cap.peakM, 1e-15);
+
+  // Below about -62 dBFS there is nothing but noise; fade out rather than
+  // amplify it to a full swing.
+  const gate = clamp((rmsDb + 62) / 14, 0, 1);
+
+  return { x, v, gate };
 }
 
 /* --------------------------------------------------------------
@@ -387,12 +494,40 @@ function drawScope() {
   ctx.stroke();
   ctx.restore();
 
+  /* The diaphragm's own displacement, over the same samples. Normalised to
+     its own peak, because its real amplitude is nanometres. What is worth
+     seeing is not its size but its TIMING: it trails the pressure driving
+     it, and the lag grows as the signal approaches the capsule's resonance. */
+  if (els.showDiaphragm.checked && C.capsule && C.capsule.peakM > 0
+      && C.capsule.disp.length === buf.length) {
+    const d = C.capsule.disp;
+    const k = 1 / C.capsule.peakM;
+    const stride = Math.max(1, Math.floor(span / w));
+    ctx.save();
+    ctx.strokeStyle = theme.bar;
+    ctx.globalAlpha = 0.85;
+    ctx.lineWidth = 1.3 * dpr;
+    ctx.beginPath();
+    for (let i = 0; i < span; i += stride) {
+      const x = i * (w - 1) / (span - 1);
+      const y = mid - clamp(d[start + i] * k, -1, 1) * amp * 0.8;
+      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
   const ms = (span / A.ctx.sampleRate) * 1000;
   scrim(scope, 0, 20 * dpr);
   label(scope, `${ms.toFixed(ms < 10 ? 2 : 1)} ms window`, 8 * dpr, 11 * dpr);
   label(scope, '+1.0', w - 8 * dpr, 11 * dpr, 'right');
   scrim(scope, h - 20 * dpr, 20 * dpr);
   label(scope, '−1.0', w - 8 * dpr, h - 11 * dpr, 'right');
+  if (els.showDiaphragm.checked && C.capsule) {
+    ctx.fillStyle = theme.bar;
+    ctx.fillRect(8 * dpr, h - 14 * dpr, 14 * dpr, 2 * dpr);
+    label(scope, 'diaphragm', 26 * dpr, h - 13 * dpr);
+  }
 }
 
 /* The analyser's bins are evenly spaced in Hz, but we hear pitch
@@ -536,12 +671,59 @@ function drawSpectrogram() {
   ctx.putImageData(sgColumn, w - 1, 0);
 }
 
+function drawCapsuleView(x, v, gate) {
+  const cap = C.capsule;
+  const deflect = clamp(x / C.visPeak, -1, 1) * gate;
+
+  /* Break-up. Below resonance a membrane moves in its fundamental mode.
+     Driven above it, higher modes join in and parts of the surface start
+     moving against each other. Blended in proportion to how far past
+     resonance the dominant partial sits — indicative, not a modal
+     simulation of a real capsule. */
+  const over = A.dominantHz > 0 ? A.dominantHz / cap.spec.f0 - 1 : 0;
+  const mix = clamp(over * 0.28, 0, 0.42) * gate;
+
+  let airPeak = 1e-6;
+  for (let i = 0; i < C.air.length; i++) {
+    const a = Math.abs(C.air[i]);
+    if (a > airPeak) airPeak = a;
+  }
+
+  const extra = cap.spec.senses === 'displacement'
+    ? `C = ${(cap.capacitance(x) * 1e12).toFixed(2)} pF`
+    : `v = ${(v * 1e3).toFixed(3)} mm/s`;
+
+  const res = drawCapsule(capsCv, {
+    capsule: cap, deflect, mix, extra,
+    air: C.air, airPeak,
+    theme, running: A.running, visPeak: C.visPeak,
+  });
+  C.mag = res.magnification;
+}
+
+function updateCapsuleReadouts(x, v, rmsDb) {
+  const cap = C.capsule;
+  els.dispVal.textContent = metres(x);
+  els.splVal.textContent = rmsDb > -99 ? (rmsDb + FS_SPL_DB).toFixed(0) : '—';
+  els.capPeak.textContent = metres(cap.peakM);
+  els.capOut.textContent = volts(cap.emf(x, v));
+  els.capMag.textContent = magnification(C.mag);
+  els.capSpeed.textContent = SPEEDS[Number(els.slow.value)].label;
+}
+
 function drawIdle() {
   readTheme();
-  [scope, spec, sgram].forEach(fit);
+  [scope, spec, sgram, capsCv].forEach(fit);
   drawScope();
   drawSpectrum();
   clearSpectrogram();
+  if (C.capsule) {
+    C.air.fill(0);
+    drawCapsule(capsCv, {
+      capsule: C.capsule, deflect: 0, mix: 0, extra: '',
+      air: C.air, airPeak: 1, theme, running: false, visPeak: C.visPeak,
+    });
+  }
 }
 
 /* --------------------------------------------------------------
@@ -551,7 +733,7 @@ function drawIdle() {
 function loop(now) {
   A.raf = requestAnimationFrame(loop);
 
-  const resized = [fit(scope), fit(spec), fit(sgram)].some(Boolean);
+  const resized = [fit(scope), fit(spec), fit(sgram), fit(capsCv)].some(Boolean);
   if (resized) clearSpectrogram();
 
   const dt = now - A.lastFrame;
@@ -580,9 +762,16 @@ function loop(now) {
   els.pitchNote.textContent = A.dominantHz ? noteName(A.dominantHz) : '—';
   els.statFps.textContent   = `${A.fps.toFixed(0)} fps`;
 
+  // The capsule has to run before the scope, which overlays its output.
+  const cap = C.capsule ? stepCapsule(dt, rmsDb) : null;
+
   drawScope();
   drawSpectrum();
   drawSpectrogram();
+  if (cap) {
+    drawCapsuleView(cap.x, cap.v, cap.gate);
+    updateCapsuleReadouts(cap.x, cap.v, rmsDb);
+  }
 }
 
 /* --------------------------------------------------------------
@@ -660,12 +849,24 @@ els.fftSize.addEventListener('change', () => {
   if (!A.analyser) return;
   A.analyser.fftSize = Number(els.fftSize.value);
   allocate();
+  C.snapDisp = C.snapPress = null;   // capture length changes with it
   updateStats();
   els.zoom.dispatchEvent(new Event('input'));
   clearSpectrogram();
 });
 
 els.logFreq.addEventListener('change', clearSpectrogram);
+
+els.micType.addEventListener('change', () => {
+  buildCapsule();
+  if (!A.running) drawIdle();
+});
+
+els.slow.addEventListener('input', () => {
+  els.slowOut.textContent = SPEEDS[Number(els.slow.value)].label;
+});
+
+els.showDiaphragm.addEventListener('change', () => { if (!A.running) drawIdle(); });
 
 els.device.addEventListener('change', async () => {
   if (A.running) { stop(); await start(); }
@@ -693,6 +894,8 @@ els.gain.dispatchEvent(new Event('input'));
 els.smoothing.dispatchEvent(new Event('input'));
 els.floor.dispatchEvent(new Event('input'));
 els.zoomOut.textContent = '—';
+els.slow.dispatchEvent(new Event('input'));
+buildCapsule();
 listDevices();
 drawIdle();
 
