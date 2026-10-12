@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sound Wave</title>
+<meta name="description" content="Live microphone visualiser: oscilloscope, spectrum and spectrogram in the browser.">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="logo" aria-hidden="true"></span>
+    <h1>Sound&nbsp;Wave<span class="sub">live microphone visualiser</span></h1>
+  </div>
+  <div class="actions">
+    <button id="themeBtn" class="ghost" type="button" title="Toggle light / dark" aria-label="Toggle light or dark theme">
+      <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
+        <circle cx="10" cy="10" r="7" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        <path d="M10 3a7 7 0 0 0 0 14z" fill="currentColor"/>
+      </svg>
+    </button>
+    <button id="pauseBtn" class="ghost" type="button" disabled>Freeze</button>
+    <button id="startBtn" class="primary" type="button">Start mic</button>
+  </div>
+</header>
+
+<p id="banner" class="banner" role="status" hidden></p>
+
+<div class="layout">
+
+  <main class="views">
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Waveform<span class="hint">amplitude over time — an oscilloscope</span></h2>
+        <div class="readout">
+          <span><b id="rmsVal">—</b> dBFS rms</span>
+          <span><b id="peakVal">—</b> dBFS peak</span>
+        </div>
+      </div>
+      <div class="meter" aria-hidden="true">
+        <div class="meter-fill" id="meterRms"></div>
+        <div class="meter-peak" id="meterPeak"></div>
+      </div>
+      <div class="canvas-wrap tall"><canvas id="scope"></canvas></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Spectrum<span class="hint">how much energy sits at each frequency</span></h2>
+        <div class="readout">
+          <span>dominant <b id="pitchHz">—</b></span>
+          <span><b id="pitchNote">—</b></span>
+        </div>
+      </div>
+      <div class="canvas-wrap"><canvas id="spectrum"></canvas></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Spectrogram<span class="hint">the spectrum, scrolling — time runs left to right</span></h2>
+        <div class="readout"><span id="sgAxis">log Hz ↑</span></div>
+      </div>
+      <div class="canvas-wrap"><canvas id="spectrogram"></canvas></div>
+    </section>
+
+  </main>
+
+  <aside class="controls">
+    <h2 class="controls-title">Controls</h2>
+
+    <label class="field">
+      <span>Input device</span>
+      <select id="device"><option value="">Default microphone</option></select>
+    </label>
+
+    <label class="field">
+      <span>Input gain <output id="gainOut">1.0&times;</output></span>
+      <input id="gain" type="range" min="0.1" max="20" step="0.1" value="1">
+    </label>
+
+    <label class="field">
+      <span>Time zoom <output id="zoomOut">—</output></span>
+      <input id="zoom" type="range" min="0.03" max="1" step="0.01" value="0.35">
+    </label>
+
+    <label class="field">
+      <span>FFT size</span>
+      <select id="fftSize">
+        <option value="512">512</option>
+        <option value="1024">1024</option>
+        <option value="2048" selected>2048</option>
+        <option value="4096">4096</option>
+        <option value="8192">8192</option>
+        <option value="16384">16384</option>
+      </select>
+    </label>
+
+    <label class="field">
+      <span>Smoothing <output id="smoothOut">0.70</output></span>
+      <input id="smoothing" type="range" min="0" max="0.95" step="0.01" value="0.7">
+    </label>
+
+    <label class="field">
+      <span>Noise floor <output id="floorOut">-95 dB</output></span>
+      <input id="floor" type="range" min="-120" max="-40" step="1" value="-95">
+    </label>
+
+    <label class="check">
+      <input id="trigger" type="checkbox" checked>
+      <span>Trigger lock <small>align on a rising zero crossing so the wave stops sliding</small></span>
+    </label>
+
+    <label class="check">
+      <input id="logFreq" type="checkbox" checked>
+      <span>Log frequency axis <small>matches how we hear pitch</small></span>
+    </label>
+
+    <dl class="stats">
+      <dt>Sample rate</dt><dd id="statSr">—</dd>
+      <dt>Bin width</dt><dd id="statBin">—</dd>
+      <dt>Window</dt><dd id="statWin">—</dd>
+      <dt>Frame</dt><dd id="statFps">—</dd>
+    </dl>
+
+    <p class="foot">
+      Audio never leaves this page — it is analysed in your browser and nothing is
+      recorded or uploaded. Keys: <kbd>S</kbd> start/stop, <kbd>Space</kbd> freeze.
+    </p>
+  </aside>
+
+</div>
+
+<script src="app.js" charset="utf-8"></script>
+</body>
+</html>
