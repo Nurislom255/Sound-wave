@@ -1,0 +1,338 @@
+/* ---------------------------------------------------------------
+   Design tokens. Every colour lives here once, so the canvases and
+   the DOM can never drift apart: app.js reads these same variables
+   with getComputedStyle() before it paints.
+   --------------------------------------------------------------- */
+:root {
+  color-scheme: light dark;
+
+  --bg:            #eef0f4;
+  --panel:         #ffffff;
+  --panel-edge:    #d7dbe3;
+  --text:          #13161c;
+  --muted:         #5c6472;
+  --accent:        #1d6ff2;
+  --accent-ink:    #ffffff;
+
+  --canvas-bg:     #fbfcfe;
+  --grid:          #e2e6ee;
+  --grid-strong:   #c9d0dc;
+  --axis-text:     #7b8392;
+  --wave:          #1d6ff2;
+  --wave-glow:     rgba(29, 111, 242, .35);
+  --bar:           #2bb673;
+  --bar-top:       #0d8f54;
+
+  --radius: 14px;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:          #0b0d12;
+    --panel:       #13161d;
+    --panel-edge:  #242a35;
+    --text:        #e8ecf4;
+    --muted:       #8b95a7;
+    --accent:      #4d9bff;
+    --accent-ink:  #06101f;
+
+    --canvas-bg:   #080a0f;
+    --grid:        #1b2130;
+    --grid-strong: #2b3445;
+    --axis-text:   #6e7a8e;
+    --wave:        #46e39a;
+    --wave-glow:   rgba(70, 227, 154, .45);
+    --bar:         #4d9bff;
+    --bar-top:     #9ccaff;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg:          #0b0d12;
+  --panel:       #13161d;
+  --panel-edge:  #242a35;
+  --text:        #e8ecf4;
+  --muted:       #8b95a7;
+  --accent:      #4d9bff;
+  --accent-ink:  #06101f;
+
+  --canvas-bg:   #080a0f;
+  --grid:        #1b2130;
+  --grid-strong: #2b3445;
+  --axis-text:   #6e7a8e;
+  --wave:        #46e39a;
+  --wave-glow:   rgba(70, 227, 154, .45);
+  --bar:         #4d9bff;
+  --bar-top:     #9ccaff;
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.5 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  padding: 0 16px 48px;
+}
+
+/* ---------------- top bar ---------------- */
+
+.topbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 20px 0 16px;
+}
+
+.brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+
+.logo {
+  width: 30px; height: 30px; flex: none;
+  border-radius: 9px;
+  background:
+    radial-gradient(circle at 30% 30%, var(--wave), transparent 60%),
+    linear-gradient(135deg, var(--accent), var(--bar));
+}
+
+h1 {
+  font-size: 19px;
+  font-weight: 650;
+  letter-spacing: -.01em;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+h1 .sub {
+  font-size: 12px;
+  font-weight: 450;
+  color: var(--muted);
+  letter-spacing: 0;
+}
+
+.actions { display: flex; gap: 8px; }
+
+button {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 550;
+  padding: 9px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--panel-edge);
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+  transition: filter .12s, opacity .12s;
+}
+button:hover:not(:disabled) { filter: brightness(1.06); }
+button:disabled { opacity: .45; cursor: default; }
+button.primary {
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--accent-ink);
+}
+button.ghost { min-width: 44px; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.banner {
+  max-width: 1400px;
+  margin: 0 auto 16px;
+  padding: 11px 14px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, #e0512f 45%, var(--panel-edge));
+  background: color-mix(in srgb, #e0512f 12%, var(--panel));
+  font-size: 13.5px;
+}
+
+/* ---------------- layout ---------------- */
+
+.layout {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) 290px;
+  align-items: start;
+}
+
+.views { display: grid; gap: 16px; min-width: 0; }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--panel-edge);
+  border-radius: var(--radius);
+  padding: 14px;
+  min-width: 0;
+}
+
+.panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+h2 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+h2 .hint { font-size: 12px; font-weight: 400; color: var(--muted); }
+
+.readout { display: flex; gap: 14px; font: 12px/1 var(--mono); color: var(--muted); }
+.readout b { color: var(--text); font-weight: 600; font-size: 13px; }
+
+.canvas-wrap { height: 190px; }
+.canvas-wrap.tall { height: 260px; }
+.canvas-wrap canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  background: var(--canvas-bg);
+}
+
+/* ---------------- level meter ---------------- */
+
+.meter {
+  position: relative;
+  height: 6px;
+  margin: 0 0 10px;
+  border-radius: 3px;
+  background: var(--grid);
+  overflow: hidden;
+}
+.meter-fill {
+  position: absolute; inset: 0 auto 0 0;
+  width: 0;
+  background: linear-gradient(90deg, var(--bar), var(--bar-top));
+  transition: width .05s linear;
+}
+.meter-peak {
+  position: absolute; top: 0; bottom: 0;
+  width: 2px;
+  left: 0;
+  background: var(--text);
+}
+
+/* ---------------- controls ---------------- */
+
+.controls {
+  background: var(--panel);
+  border: 1px solid var(--panel-edge);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+  position: sticky;
+  top: 16px;
+}
+
+.controls-title {
+  font-size: 11px;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0;
+}
+
+.field { display: grid; gap: 6px; font-size: 12.5px; color: var(--muted); }
+.field > span { display: flex; justify-content: space-between; gap: 8px; }
+.field output { font: 12px var(--mono); color: var(--text); }
+
+select {
+  font: inherit;
+  font-size: 13px;
+  padding: 7px 9px;
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--panel-edge);
+  background: var(--bg);
+  color: var(--text);
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 20px;
+  background: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px; border-radius: 2px; background: var(--grid-strong);
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 15px; height: 15px; margin-top: -5.5px;
+  border-radius: 50%; background: var(--accent); border: none;
+}
+input[type="range"]::-moz-range-track {
+  height: 4px; border-radius: 2px; background: var(--grid-strong);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 15px; height: 15px; border: none; border-radius: 50%; background: var(--accent);
+}
+
+.check {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 9px;
+  align-items: start;
+  font-size: 13px;
+}
+.check input { margin: 3px 0 0; accent-color: var(--accent); }
+.check small { display: block; color: var(--muted); font-size: 11.5px; line-height: 1.35; }
+
+.stats {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--panel-edge);
+  font-size: 12px;
+}
+.stats dt { color: var(--muted); }
+.stats dd { margin: 0; font-family: var(--mono); text-align: right; }
+
+.foot { font-size: 11.5px; line-height: 1.5; color: var(--muted); margin: 0; }
+
+kbd {
+  font: 11px var(--mono);
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid var(--panel-edge);
+  background: var(--bg);
+}
+
+/* ---------------- narrow screens ---------------- */
+
+@media (max-width: 900px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  .controls { position: static; }
+  .canvas-wrap { height: 160px; }
+  .canvas-wrap.tall { height: 210px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .meter-fill { transition: none; }
+}
+
+/* Keep the icon optically centred inside the square ghost button. */
+button.ghost svg { display: block; margin: 0 auto; }
