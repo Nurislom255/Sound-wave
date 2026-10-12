@@ -47,6 +47,25 @@
       <div class="canvas-wrap tall"><canvas id="scope"></canvas></div>
     </section>
 
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Capsule<span class="hint">what the diaphragm is physically doing</span></h2>
+        <div class="readout">
+          <span><b id="dispVal">—</b> now</span>
+          <span><b id="splVal">—</b> dB SPL</span>
+        </div>
+      </div>
+      <div class="canvas-wrap capsule"><canvas id="capsule"></canvas></div>
+      <dl class="capsule-stats">
+        <div><dt>peak swing</dt><dd id="capPeak">—</dd></div>
+        <div><dt id="capOutLabel">output</dt><dd id="capOut">—</dd></div>
+        <div><dt>magnified</dt><dd id="capMag">—</dd></div>
+        <div><dt>replay</dt><dd id="capSpeed">—</dd></div>
+      </dl>
+      <p class="capsule-note" id="capNote"></p>
+    </section>
+
     <section class="panel">
       <div class="panel-head">
         <h2>Spectrum<span class="hint">how much energy sits at each frequency</span></h2>
@@ -84,6 +103,25 @@
     <label class="field">
       <span>Time zoom <output id="zoomOut">—</output></span>
       <input id="zoom" type="range" min="0.03" max="1" step="0.01" value="0.35">
+    </label>
+
+    <label class="field">
+      <span>Microphone type</span>
+      <select id="micType">
+        <option value="condenser" selected>Condenser (½″ capsule)</option>
+        <option value="dynamic">Dynamic (moving coil)</option>
+        <option value="ribbon">Ribbon (corrugated foil)</option>
+      </select>
+    </label>
+
+    <label class="field">
+      <span>Slow motion <output id="slowOut">1/30</output></span>
+      <input id="slow" type="range" min="0" max="4" step="1" value="2">
+    </label>
+
+    <label class="check">
+      <input id="showDiaphragm" type="checkbox" checked>
+      <span>Diaphragm trace on waveform <small>watch it lag behind the pressure driving it</small></span>
     </label>
 
     <label class="field">
@@ -126,6 +164,10 @@
     </dl>
 
     <p class="foot">
+      Capsule figures assume 0 dBFS = 120 dB SPL; real sensitivity depends on your
+      microphone and preamp gain, so read them as the right order of magnitude,
+      not a calibration.
+      <br><br>
       Audio never leaves this page — it is analysed in your browser and nothing is
       recorded or uploaded. Keys: <kbd>S</kbd> start/stop, <kbd>Space</kbd> freeze.
     </p>
@@ -133,6 +175,6 @@
 
 </div>
 
-<script src="app.js" charset="utf-8"></script>
+<script type="module" src="app.js"></script>
 </body>
 </html>

@@ -199,6 +199,7 @@ h2 .hint { font-size: 12px; font-weight: 400; color: var(--muted); }
 
 .canvas-wrap { height: 190px; }
 .canvas-wrap.tall { height: 260px; }
+.canvas-wrap.capsule { height: 310px; }
 .canvas-wrap canvas {
   display: block;
   width: 100%;
@@ -328,6 +329,7 @@ kbd {
   .controls { position: static; }
   .canvas-wrap { height: 160px; }
   .canvas-wrap.tall { height: 210px; }
+  .canvas-wrap.capsule { height: 420px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -336,3 +338,39 @@ kbd {
 
 /* Keep the icon optically centred inside the square ghost button. */
 button.ghost svg { display: block; margin: 0 auto; }
+
+/* ---------------- capsule panel ---------------- */
+
+.capsule-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: 10px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--panel-edge);
+}
+.capsule-stats > div { min-width: 0; }
+.capsule-stats dt {
+  font-size: 10.5px;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.capsule-stats dd {
+  margin: 2px 0 0;
+  font: 13px var(--mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.capsule-note {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+@media (max-width: 560px) {
+  .capsule-stats { grid-template-columns: repeat(2, 1fr); gap: 10px 8px; }
+}
